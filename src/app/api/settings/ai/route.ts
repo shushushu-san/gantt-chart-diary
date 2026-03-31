@@ -20,7 +20,7 @@ export async function GET() {
 
   // APIキーはレスポンスに含めない（マスク処理）
   return NextResponse.json({
-    provider: config?.provider ?? "openai",
+    provider: config?.provider ?? "none",
     openaiApiKeySet: !!config?.openaiApiKey,
     openaiModel: config?.openaiModel ?? "gpt-4o",
     ollamaBaseUrl: config?.ollamaBaseUrl ?? "http://localhost:11434",
@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest) {
   }
 
   // バリデーション
-  if (body.provider && !["openai", "ollama"].includes(body.provider)) {
+  if (body.provider && !["none", "openai", "ollama"].includes(body.provider)) {
     return NextResponse.json({ error: "Invalid provider" }, { status: 400 })
   }
 

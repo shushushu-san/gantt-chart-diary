@@ -59,29 +59,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     isExplicit: boolean
   } | null = null
 
+  let aiError: string | null = null
+
   if (extractedText.trim().length > 0) {
     try {
       const ai = await getAIProviderForUser(session.user.id)
-      const baseDate = new Date()
-      const [periodResult, summaryResult, folderResult] = await Promise.all([
-        ai.extractPeriod(extractedText.slice(0, 4000), baseDate),
-        ai.summarize(extractedText.slice(0, 4000)),
-        ai.suggestFolder(extractedText.slice(0, 2000), project.name),
-      ])
-      aiSuggestion = {
-        title: summaryResult.title,
-        summary: summaryResult.summary,
-        startDate: periodResult.startDate
-          ? periodResult.startDate.toISOString().split("T")[0]
-          : null,
-        endDate: periodResult.endDate
-          ? periodResult.endDate.toISOString().split("T")[0]
-          : null,
-        isExplicit: periodResult.isExplicit,
+      if (ai !== null) {
+        const baseDate = new Date()
+        const [periodResult, summaryResult, folderResult] = await Promise.all([
+          ai.extractPeriod(extractedText.slice(0, 4000), baseDate),
+          ai.summarize(extractedText.slice(0, 4000)),
+          ai.suggestFolder(extractedText.slice(0, 2000), project.name),
+        ])
+        aiSuggestion = {
+          title: summaryResult.title,
+          summary: summaryResult.summary,
+          startDate: periodResult.startDate
+            ? periodResult.startDate.toISOString().split("T")[0]
+            : null,
+          endDate: periodResult.endDate
+            ? periodResult.endDate.toISOString().split("T")[0]
+            : null,
+          isExplicit: periodResult.isExplicit,
+        }
+        suggestedFolder = folderResult
       }
-      suggestedFolder = folderResult
-    } catch {
-      // AI解析に失敗してもファイル保存は成功扱い
+    } catch (e) {
+      aiError = e instanceof Error ? e.message : "AI解析に失敗しました"
     }
   }
 
@@ -106,5 +110,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   })
 
-  return NextResponse.json({ file: projectFile, aiSuggestion, suggestedFolder }, { status: 201 })
+  return NextResponse.json({ file: projectFile, aiSuggestion, suggestedFolder, aiError }, { status: 201 })
 }

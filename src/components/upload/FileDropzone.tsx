@@ -51,7 +51,11 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
     }
 
     const data = await res.json()
-    const { file: projectFile, aiSuggestion, suggestedFolder } = data
+    const { file: projectFile, aiSuggestion, suggestedFolder, aiError } = data
+
+    if (aiError) {
+      setError(`AI解析エラー: ${aiError}`)
+    }
 
     if (aiSuggestion) {
       setConfirmTitle(aiSuggestion.title)

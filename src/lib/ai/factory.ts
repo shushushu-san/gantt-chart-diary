@@ -44,6 +44,10 @@ export function createAIProviderFromEnv(): AIProvider {
 export function createAIProviderFromUserConfig(
   userConfig: UserAIConfig
 ): AIProvider {
+  if (userConfig.provider === "none") {
+    throw new Error("AI provider is set to none")
+  }
+
   if (userConfig.provider === "ollama") {
     return createAIProvider({
       type: "ollama",
@@ -61,7 +65,7 @@ export function createAIProviderFromUserConfig(
 
 // DBに保存するユーザーのAI設定型
 export interface UserAIConfig {
-  provider: "openai" | "ollama"
+  provider: "none" | "openai" | "ollama"
   // OpenAI
   openaiApiKey?: string // ユーザー独自キーを使う場合（任意）
   openaiModel?: string

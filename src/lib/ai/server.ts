@@ -2,18 +2,19 @@
 // ユーザーのDB設定を読み込んでプロバイダーを生成する
 
 import { prisma } from "@/lib/db/prisma"
-import { createAIProviderFromUserConfig, createAIProviderFromEnv } from "@/lib/ai"
+import { createAIProviderFromUserConfig } from "@/lib/ai"
 import type { AIProvider } from "@/lib/ai"
 
 // ユーザーIDを元にそのユーザーのAI設定でプロバイダーを生成
-// 設定が未登録の場合は環境変数のデフォルト設定にフォールバック
-export async function getAIProviderForUser(userId: string): Promise<AIProvider> {
+// 未設定または "none" の場合は null を返す
+export async function getAIProviderForUser(userId: string): Promise<AIProvider | null> {
   const config = await prisma.userAIConfig.findUnique({
     where: { userId },
   })
 
-  if (!config) {
-    return createAIProviderFromEnv()
+  // 設定なし or "none" の場合はAI解析を行わない
+  if (!config || config.provider === "none") {
+    return null
   }
 
   return createAIProviderFromUserConfig({

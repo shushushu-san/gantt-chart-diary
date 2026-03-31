@@ -1,7 +1,7 @@
 // AI プロバイダーの統一インターフェース
 // 新しいプロバイダーを追加する場合はこのインターフェースを実装する
 
-export type AIProviderType = "openai" | "ollama"
+export type AIProviderType = "none" | "openai" | "ollama"
 
 export interface PeriodResult {
   startDate: Date | null
