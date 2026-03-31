@@ -129,6 +129,7 @@ model ProjectFile {
   url       String
   mimeType  String?
   size      Int?
+  subfolder String?  // AI提案・ユーザー確認済みのサブフォルダ名
   createdAt DateTime @default(now())
 
   entries Entry[]

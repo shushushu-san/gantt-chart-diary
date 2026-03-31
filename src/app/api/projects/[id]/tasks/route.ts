@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { title, startDate, endDate, fileId } = await req.json()
+  const { title, summary, startDate, endDate, fileId, subfolder } = await req.json()
   if (!title || !startDate || !endDate) {
     return NextResponse.json({ error: "title, startDate, endDate は必須です" }, { status: 400 })
   }
@@ -40,6 +40,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Entry + GanttItem をトランザクションで作成
   const result = await prisma.$transaction(async (tx) => {
+    // subfolderが指定された場合、ProjectFileを更新
+    if (fileId && subfolder) {
+      await tx.projectFile.update({
+        where: { id: fileId },
+        data: { subfolder },
+      })
+    }
     const entry = await tx.entry.create({
       data: {
         userId: session.user.id,
@@ -53,6 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: {
         entryId: entry.id,
         title,
+        summary: summary ?? null,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         tags: [],

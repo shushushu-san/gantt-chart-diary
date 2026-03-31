@@ -47,25 +47,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 
-  // ファイルを保存
-  const uploadDir = path.join(process.cwd(), "uploads", id)
-  await mkdir(uploadDir, { recursive: true })
-  const baseName = path.basename(file.name)
-  const safeName = baseName.replace(/[^a-zA-Z0-9._\u3040-\u9FFF-]/g, "_")
-  const filename = `${Date.now()}-${safeName}`
-  await writeFile(path.join(uploadDir, filename), buffer)
+  // テキスト抽出 → AI解析（ファイル保存前にフォルダ名を決める）
+  const extractedText = await extractText(buffer, file.type)
 
-  const projectFile = await prisma.projectFile.create({
-    data: {
-      projectId: id,
-      name: file.name,
-      url: `/uploads/${id}/${filename}`,
-      mimeType: file.type,
-      size: file.size,
-    },
-  })
-
-  // テキスト抽出 → AI解析
+  let suggestedFolder: { folder: string; reason: string } | null = null
   let aiSuggestion: {
     title: string
     summary: string
@@ -74,14 +59,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     isExplicit: boolean
   } | null = null
 
-  const extractedText = await extractText(buffer, file.type)
   if (extractedText.trim().length > 0) {
     try {
       const ai = await getAIProviderForUser(session.user.id)
       const baseDate = new Date()
-      const [periodResult, summaryResult] = await Promise.all([
+      const [periodResult, summaryResult, folderResult] = await Promise.all([
         ai.extractPeriod(extractedText.slice(0, 4000), baseDate),
         ai.summarize(extractedText.slice(0, 4000)),
+        ai.suggestFolder(extractedText.slice(0, 2000), project.name),
       ])
       aiSuggestion = {
         title: summaryResult.title,
@@ -94,10 +79,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           : null,
         isExplicit: periodResult.isExplicit,
       }
+      suggestedFolder = folderResult
     } catch {
       // AI解析に失敗してもファイル保存は成功扱い
     }
   }
 
-  return NextResponse.json({ file: projectFile, aiSuggestion }, { status: 201 })
+  // ファイルを保存（AI提案フォルダは仮置き、ユーザー確認後に確定）
+  // アップロード先: uploads/[project-name]/[subfolder]/
+  const safeProjectName = project.name.replace(/[^a-zA-Z0-9\u3040-\u9FFF]/g, "_").slice(0, 40)
+  const uploadDir = path.join(process.cwd(), "uploads", safeProjectName)
+  await mkdir(uploadDir, { recursive: true })
+  const baseName = path.basename(file.name)
+  const safeName = baseName.replace(/[^a-zA-Z0-9._\u3040-\u9FFF-]/g, "_")
+  const filename = `${Date.now()}-${safeName}`
+  await writeFile(path.join(uploadDir, filename), buffer)
+
+  const projectFile = await prisma.projectFile.create({
+    data: {
+      projectId: id,
+      name: file.name,
+      url: `/uploads/${safeProjectName}/${filename}`,
+      mimeType: file.type,
+      size: file.size,
+      // subfolder はユーザー確認後に PATCH で更新する
+    },
+  })
+
+  return NextResponse.json({ file: projectFile, aiSuggestion, suggestedFolder }, { status: 201 })
 }

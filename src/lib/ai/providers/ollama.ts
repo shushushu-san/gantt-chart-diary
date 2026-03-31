@@ -3,11 +3,13 @@ import type {
   AIProviderType,
   PeriodResult,
   SummaryResult,
+  FolderResult,
   OllamaConfig,
 } from "../types"
 import {
   buildPeriodPrompt,
   buildSummarizePrompt,
+  buildSuggestFolderPrompt,
   parseJSONResponse,
 } from "../prompts"
 
@@ -64,5 +66,13 @@ export class OllamaProvider implements AIProvider {
     const prompt = buildSummarizePrompt(text)
     const raw = await this.generate(prompt)
     return parseJSONResponse<SummaryResult>(raw)
+  }
+
+  async suggestFolder(text: string, projectName: string): Promise<FolderResult> {
+    const prompt = buildSuggestFolderPrompt(text, projectName)
+    const raw = await this.generate(prompt)
+    const parsed = parseJSONResponse<FolderResult>(raw)
+    parsed.folder = parsed.folder.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 20).toLowerCase()
+    return parsed
   }
 }

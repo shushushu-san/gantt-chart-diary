@@ -15,6 +15,7 @@ type PendingConfirm = {
   fileId: string
   fileName: string
   suggestion: AISuggestion
+  suggestedFolder: { folder: string; reason: string } | null
 }
 
 export function FileDropzone({ projectId }: { projectId: string }) {
@@ -24,11 +25,11 @@ export function FileDropzone({ projectId }: { projectId: string }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState("")
 
-  // AI結果確認フォームの状態
   const [pending, setPending] = useState<PendingConfirm | null>(null)
   const [confirmTitle, setConfirmTitle] = useState("")
   const [confirmStart, setConfirmStart] = useState("")
   const [confirmEnd, setConfirmEnd] = useState("")
+  const [confirmFolder, setConfirmFolder] = useState("")
   const [confirming, setConfirming] = useState(false)
 
   async function uploadFile(file: File) {
@@ -50,20 +51,20 @@ export function FileDropzone({ projectId }: { projectId: string }) {
     }
 
     const data = await res.json()
-    const { file: projectFile, aiSuggestion } = data
+    const { file: projectFile, aiSuggestion, suggestedFolder } = data
 
     if (aiSuggestion) {
-      // AI結果を確認フォームにセット
       setConfirmTitle(aiSuggestion.title)
       setConfirmStart(aiSuggestion.startDate ?? "")
       setConfirmEnd(aiSuggestion.endDate ?? "")
-      setPending({ fileId: projectFile.id, fileName: file.name, suggestion: aiSuggestion })
+      setConfirmFolder(suggestedFolder?.folder ?? "general")
+      setPending({ fileId: projectFile.id, fileName: file.name, suggestion: aiSuggestion, suggestedFolder })
     } else {
-      // AIなし・テキスト抽出不可の場合は手動入力フォームを開く
       setConfirmTitle(file.name.replace(/\.[^.]+$/, ""))
       setConfirmStart("")
       setConfirmEnd("")
-      setPending({ fileId: projectFile.id, fileName: file.name, suggestion: { title: "", summary: "", startDate: null, endDate: null, isExplicit: false } })
+      setConfirmFolder("general")
+      setPending({ fileId: projectFile.id, fileName: file.name, suggestion: { title: "", summary: "", startDate: null, endDate: null, isExplicit: false }, suggestedFolder: null })
     }
 
     router.refresh()
@@ -83,9 +84,11 @@ export function FileDropzone({ projectId }: { projectId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: confirmTitle,
+        summary: pending.suggestion.summary || null,
         startDate: confirmStart,
         endDate: confirmEnd,
         fileId: pending.fileId,
+        subfolder: confirmFolder || "general",
       }),
     })
     setConfirming(false)
@@ -137,6 +140,24 @@ export function FileDropzone({ projectId }: { projectId: string }) {
               onChange={(e) => setConfirmTitle(e.target.value)}
               className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+          {/* フォルダ確認（AI提案・ユーザーが自由に変更可能） */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              保存フォルダ名
+              {pending.suggestedFolder && (
+                <span className="ml-2 text-indigo-500">AI提案: {pending.suggestedFolder.reason}</span>
+              )}
+            </label>
+            <input
+              type="text"
+              required
+              value={confirmFolder}
+              onChange={(e) => setConfirmFolder(e.target.value.replace(/[^a-zA-Z0-9_-]/g, "-"))}
+              placeholder="例: meeting-notes"
+              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="text-xs text-gray-400 mt-0.5">英数字・ハイフン・アンダーバーのみ。自由に変更できます。</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

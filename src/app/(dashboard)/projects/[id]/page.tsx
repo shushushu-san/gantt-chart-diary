@@ -24,6 +24,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     e.ganttItems.map((g) => ({
       id: g.id,
       title: g.title,
+      summary: g.summary,
       startDate: g.startDate.toISOString(),
       endDate: g.endDate.toISOString(),
       categoryLabel: g.categoryLabel,

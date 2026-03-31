@@ -30,6 +30,25 @@ ${text}
 }`
 }
 
+export function buildSuggestFolderPrompt(text: string, projectName: string): string {
+  return `以下の資料はプロジェクト「${projectName}」にアップロードされました。
+資料の内容を分析し、保存フォルダ名を提案してください。
+
+## 資料の内容（抜粋）
+${text}
+
+## 制約
+- フォルダ名は英数字・ハイフン・アンダーバーのみ（例: meeting-notes, financial-report）
+- 20文字以内
+- 日本語不可
+
+## 出力形式（JSONのみ返すこと）
+{
+  "folder": "<フォルダ名>",
+  "reason": "<50文字以内で判断理由を日本語で>"
+}`
+}
+
 // LLMのJSON出力をパース（マークダウンコードブロックを除去）
 export function parseJSONResponse<T>(raw: string): T {
   const cleaned = raw

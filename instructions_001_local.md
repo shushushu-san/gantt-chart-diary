@@ -6,8 +6,9 @@
 | --- | --- | --- |
 | Node.js | v18以上 | `node -v` |
 | npm | v9以上 | `npm -v` |
-| PostgreSQL | v14以上 | `psql --version` |
 | Git | 任意 | `git --version` |
+
+> **PostgreSQL はローカル不要。** DBには [Supabase](https://supabase.com)（無料クラウドPostgreSQL）を使用しているため、ローカルへのPostgreSQLインストールは不要。
 
 ---
 
@@ -31,9 +32,9 @@ npm install
 `.env.local` をプロジェクトルートに作成し、以下を記入する。
 
 ```env
-# データベース接続URL
-# 例: postgresql://ユーザー名:パスワード@localhost:5432/gantt_diary
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/gantt_diary
+# データベース接続URL（Supabase の接続文字列を貼り付ける）
+# 取得場所: Supabase ダッシュボード → Connect → URI
+DATABASE_URL=postgresql://postgres:パスワード@db.xxxx.supabase.co:5432/postgres
 
 # NextAuth（任意の文字列。本番環境では必ず長いランダム文字列にすること）
 NEXTAUTH_SECRET=your-secret-key-here
@@ -53,21 +54,25 @@ OLLAMA_MODEL=llama3
 
 > `.env.local` は `.gitignore` に含まれており、リポジトリには保存されない。
 
-### 4. PostgreSQLにデータベースを作成
+#### Supabase で DATABASE_URL を取得する手順
 
-```powershell
-psql -U postgres -c "CREATE DATABASE gantt_diary;"
-```
+1. [https://supabase.com](https://supabase.com) でプロジェクトを作成
+2. ダッシュボード上部の **「Connect」** ボタンをクリック
+3. **「Connection string」→「URI」** をコピーして `.env.local` に貼り付ける
+4. `[YOUR-PASSWORD]` の部分をプロジェクト作成時に設定したパスワードに書き換える
 
-### 5. Prismaクライアントを生成・マイグレーションを実行
+### 4. Prismaクライアントを生成・マイグレーションを実行
 
 ```powershell
 # 型定義の生成
 npx prisma generate
 
-# テーブルをDBに作成
+# テーブルをDBに作成（初回）
+$env:DATABASE_URL="postgresql://..."
 npx prisma migrate dev --name init
 ```
+
+> PowerShell は `.env.local` を自動で読み込まないため、`$env:DATABASE_URL=` で明示的に設定してから実行する。
 
 ---
 
@@ -83,13 +88,15 @@ npm run dev
 http://localhost:3000
 ```
 
+> ポート `3000` が使用中の場合、Next.js は自動で `3001`, `3002`... と空きポートを使用する。起動ログに表示されるURLを確認すること。
+
 | URL | 画面 |
 | --- | --- |
-| `http://localhost:3000` | ホーム |
+| `http://localhost:3000` | ホーム（未ログイン時は `/login` へリダイレクト） |
 | `http://localhost:3000/login` | ログイン |
 | `http://localhost:3000/register` | アカウント登録 |
 | `http://localhost:3000/dashboard` | ダッシュボード（要ログイン） |
-| `http://localhost:3000/projects` | プロジェクト一覧（要ログイン） |
+| `http://localhost:3000/projects/[id]` | プロジェクト詳細・ガントチャート（要ログイン） |
 
 ---
 
@@ -138,5 +145,15 @@ npx prisma generate
 
 ### DBに接続できない
 
-- `.env.local` の `DATABASE_URL` が正しいか確認する
-- PostgreSQLが起動しているか確認する（`pg_isready`）
+- `.env.local` の `DATABASE_URL` のパスワード部分に `[]` が残っていないか確認する
+- Supabase ダッシュボードでプロジェクトがアクティブ（Pausedでない）か確認する
+- パスワードを忘れた場合: Supabase → **Project Settings → Database → Reset database password**
+
+### `prisma migrate dev` が失敗する
+
+PowerShell では `.env.local` を自動で読み込まないため、以下の形式で実行する。
+
+```powershell
+$env:DATABASE_URL="postgresql://postgres:パスワード@db.xxxx.supabase.co:5432/postgres"
+npx prisma migrate dev --name init
+```

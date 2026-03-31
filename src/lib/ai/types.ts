@@ -14,10 +14,16 @@ export interface SummaryResult {
   summary: string
 }
 
+export interface FolderResult {
+  folder: string  // 英数字・ハイフン・アンダーバーのみのフォルダ名
+  reason: string  // 判断理由（ユーザー確認用）
+}
+
 export interface AIProvider {
   readonly providerType: AIProviderType
   extractPeriod(text: string, baseDate: Date): Promise<PeriodResult>
   summarize(text: string): Promise<SummaryResult>
+  suggestFolder(text: string, projectName: string): Promise<FolderResult>
 }
 
 // プロバイダー設定の型

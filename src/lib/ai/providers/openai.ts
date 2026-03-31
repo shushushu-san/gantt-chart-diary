@@ -3,11 +3,13 @@ import type {
   AIProviderType,
   PeriodResult,
   SummaryResult,
+  FolderResult,
   OpenAIConfig,
 } from "../types"
 import {
   buildPeriodPrompt,
   buildSummarizePrompt,
+  buildSuggestFolderPrompt,
   parseJSONResponse,
 } from "../prompts"
 
@@ -66,5 +68,14 @@ export class OpenAIProvider implements AIProvider {
     const prompt = buildSummarizePrompt(text)
     const raw = await this.chat(prompt)
     return parseJSONResponse<SummaryResult>(raw)
+  }
+
+  async suggestFolder(text: string, projectName: string): Promise<FolderResult> {
+    const prompt = buildSuggestFolderPrompt(text, projectName)
+    const raw = await this.chat(prompt)
+    const parsed = parseJSONResponse<FolderResult>(raw)
+    // フォルダ名を安全な文字のみに限定
+    parsed.folder = parsed.folder.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 20).toLowerCase()
+    return parsed
   }
 }
