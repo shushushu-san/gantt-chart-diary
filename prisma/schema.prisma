@@ -130,22 +130,26 @@ model ProjectFile {
   mimeType  String?
   size      Int?
   createdAt DateTime @default(now())
+
+  entries Entry[]
 }
 
 // =============================
 // 日記エントリ
 // =============================
 model Entry {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  projectId   String?
-  project     Project? @relation(fields: [projectId], references: [id])
-  content     String   // テキスト本文
-  sourceUrl   String?  // アップロードファイルのURL
-  sourceType  String?  // "text" | "pdf" | "image" | "docx"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id])
+  projectFileId String?
+  projectFile   ProjectFile? @relation(fields: [projectFileId], references: [id])
+  content       String       // テキスト本文
+  sourceUrl     String?      // アップロードファイルのURL
+  sourceType    String?      // "text" | "pdf" | "image" | "docx"
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   ganttItems GanttItem[]
 }

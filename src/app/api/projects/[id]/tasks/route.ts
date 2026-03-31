@@ -27,9 +27,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { title, categoryLabel, startDate, endDate } = await req.json()
+  const { title, startDate, endDate, fileId } = await req.json()
   if (!title || !startDate || !endDate) {
     return NextResponse.json({ error: "title, startDate, endDate は必須です" }, { status: 400 })
+  }
+
+  // fileId が指定された場合、そのファイルがこのプロジェクトに属するか確認
+  if (fileId) {
+    const pf = await prisma.projectFile.findFirst({ where: { id: fileId, projectId: id } })
+    if (!pf) return NextResponse.json({ error: "file not found" }, { status: 404 })
   }
 
   // Entry + GanttItem をトランザクションで作成
@@ -38,15 +44,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: {
         userId: session.user.id,
         projectId: id,
+        projectFileId: fileId ?? null,
         content: title,
-        sourceType: "text",
+        sourceType: fileId ? "file" : "text",
       },
     })
     const ganttItem = await tx.ganttItem.create({
       data: {
         entryId: entry.id,
         title,
-        categoryLabel: categoryLabel ?? "未分類",
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         tags: [],

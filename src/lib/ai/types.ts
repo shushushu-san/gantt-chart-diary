@@ -3,12 +3,6 @@
 
 export type AIProviderType = "openai" | "ollama"
 
-export interface ClassifyResult {
-  category: string
-  confidence: number // 0.0 ~ 1.0
-  tags: string[]
-}
-
 export interface PeriodResult {
   startDate: Date | null
   endDate: Date | null
@@ -22,7 +16,6 @@ export interface SummaryResult {
 
 export interface AIProvider {
   readonly providerType: AIProviderType
-  classify(text: string, availableCategories: string[]): Promise<ClassifyResult>
   extractPeriod(text: string, baseDate: Date): Promise<PeriodResult>
   summarize(text: string): Promise<SummaryResult>
 }

@@ -3,13 +3,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 
-const CATEGORIES = ["仕事", "学習", "健康", "趣味", "個人", "未分類"]
-
 export function NewTaskForm({ projectId }: { projectId: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
-  const [category, setCategory] = useState("未分類")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [loading, setLoading] = useState(false)
@@ -26,7 +23,7 @@ export function NewTaskForm({ projectId }: { projectId: string }) {
     const res = await fetch(`/api/projects/${projectId}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, categoryLabel: category, startDate, endDate }),
+      body: JSON.stringify({ title, startDate, endDate }),
     })
     setLoading(false)
     if (!res.ok) {
@@ -47,14 +44,14 @@ export function NewTaskForm({ projectId }: { projectId: string }) {
         onClick={() => setOpen(true)}
         className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
       >
-        + 新規タスク
+        + 手動でタスクを追加
       </button>
     )
   }
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">新規タスク</h3>
+      <h3 className="text-sm font-semibold text-gray-800 mb-3">タスクを手動追加</h3>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
@@ -68,19 +65,6 @@ export function NewTaskForm({ projectId }: { projectId: string }) {
               placeholder="例: 論文執筆"
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">カテゴリ</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div />
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">開始日</label>
             <input

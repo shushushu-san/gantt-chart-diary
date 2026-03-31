@@ -1,13 +1,11 @@
 import type {
   AIProvider,
   AIProviderType,
-  ClassifyResult,
   PeriodResult,
   SummaryResult,
   OpenAIConfig,
 } from "../types"
 import {
-  buildClassifyPrompt,
   buildPeriodPrompt,
   buildSummarizePrompt,
   parseJSONResponse,
@@ -46,15 +44,6 @@ export class OpenAIProvider implements AIProvider {
 
     const data = await res.json()
     return data.choices[0].message.content as string
-  }
-
-  async classify(
-    text: string,
-    availableCategories: string[]
-  ): Promise<ClassifyResult> {
-    const prompt = buildClassifyPrompt(text, availableCategories)
-    const raw = await this.chat(prompt)
-    return parseJSONResponse<ClassifyResult>(raw)
   }
 
   async extractPeriod(text: string, baseDate: Date): Promise<PeriodResult> {

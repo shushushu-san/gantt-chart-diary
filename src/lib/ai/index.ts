@@ -5,7 +5,6 @@ export type {
   AIProvider,
   AIProviderType,
   AIConfig,
-  ClassifyResult,
   PeriodResult,
   SummaryResult,
   OpenAIConfig,

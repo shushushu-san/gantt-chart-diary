@@ -1,13 +1,11 @@
 import type {
   AIProvider,
   AIProviderType,
-  ClassifyResult,
   PeriodResult,
   SummaryResult,
   OllamaConfig,
 } from "../types"
 import {
-  buildClassifyPrompt,
   buildPeriodPrompt,
   buildSummarizePrompt,
   parseJSONResponse,
@@ -44,15 +42,6 @@ export class OllamaProvider implements AIProvider {
 
     const data = await res.json()
     return data.response as string
-  }
-
-  async classify(
-    text: string,
-    availableCategories: string[]
-  ): Promise<ClassifyResult> {
-    const prompt = buildClassifyPrompt(text, availableCategories)
-    const raw = await this.generate(prompt)
-    return parseJSONResponse<ClassifyResult>(raw)
   }
 
   async extractPeriod(text: string, baseDate: Date): Promise<PeriodResult> {

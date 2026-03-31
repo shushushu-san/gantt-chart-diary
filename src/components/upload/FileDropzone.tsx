@@ -3,16 +3,38 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 
+type AISuggestion = {
+  title: string
+  summary: string
+  startDate: string | null
+  endDate: string | null
+  isExplicit: boolean
+}
+
+type PendingConfirm = {
+  fileId: string
+  fileName: string
+  suggestion: AISuggestion
+}
+
 export function FileDropzone({ projectId }: { projectId: string }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [message, setMessage] = useState("")
+  const [error, setError] = useState("")
+
+  // AI結果確認フォームの状態
+  const [pending, setPending] = useState<PendingConfirm | null>(null)
+  const [confirmTitle, setConfirmTitle] = useState("")
+  const [confirmStart, setConfirmStart] = useState("")
+  const [confirmEnd, setConfirmEnd] = useState("")
+  const [confirming, setConfirming] = useState(false)
 
   async function uploadFile(file: File) {
     setUploading(true)
-    setMessage("")
+    setError("")
+    setPending(null)
     const form = new FormData()
     form.append("file", file)
     const res = await fetch(`/api/projects/${projectId}/files`, {
@@ -20,13 +42,60 @@ export function FileDropzone({ projectId }: { projectId: string }) {
       body: form,
     })
     setUploading(false)
-    if (res.ok) {
-      setMessage(`「${file.name}」をアップロードしました`)
-      router.refresh()
-    } else {
+
+    if (!res.ok) {
       const d = await res.json()
-      setMessage(d.error ?? "アップロードに失敗しました")
+      setError(d.error ?? "アップロードに失敗しました")
+      return
     }
+
+    const data = await res.json()
+    const { file: projectFile, aiSuggestion } = data
+
+    if (aiSuggestion) {
+      // AI結果を確認フォームにセット
+      setConfirmTitle(aiSuggestion.title)
+      setConfirmStart(aiSuggestion.startDate ?? "")
+      setConfirmEnd(aiSuggestion.endDate ?? "")
+      setPending({ fileId: projectFile.id, fileName: file.name, suggestion: aiSuggestion })
+    } else {
+      // AIなし・テキスト抽出不可の場合は手動入力フォームを開く
+      setConfirmTitle(file.name.replace(/\.[^.]+$/, ""))
+      setConfirmStart("")
+      setConfirmEnd("")
+      setPending({ fileId: projectFile.id, fileName: file.name, suggestion: { title: "", summary: "", startDate: null, endDate: null, isExplicit: false } })
+    }
+
+    router.refresh()
+  }
+
+  async function handleConfirm(e: React.FormEvent) {
+    e.preventDefault()
+    if (!pending) return
+    if (confirmEnd < confirmStart) {
+      setError("終了日は開始日以降にしてください")
+      return
+    }
+    setConfirming(true)
+    setError("")
+    const res = await fetch(`/api/projects/${projectId}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: confirmTitle,
+        startDate: confirmStart,
+        endDate: confirmEnd,
+        fileId: pending.fileId,
+      }),
+    })
+    setConfirming(false)
+    if (!res.ok) {
+      const d = await res.json()
+      setError(d.error ?? "タスク作成に失敗しました")
+      return
+    }
+    setPending(null)
+    router.refresh()
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -34,11 +103,83 @@ export function FileDropzone({ projectId }: { projectId: string }) {
     setDragging(false)
     const files = e.dataTransfer.files
     if (!files || files.length === 0) return
-    if (files.length > 1) {
-      setMessage("複数のファイルがドロップされました。最初の1つのみアップロードされます。")
-    }
     const file = files[0]
     if (file) uploadFile(file)
+  }
+
+  // AI確認フォーム
+  if (pending) {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm font-semibold text-blue-800 mb-1">
+          「{pending.fileName}」を解析しました
+        </p>
+        {pending.suggestion.summary && (
+          <p className="text-xs text-blue-600 mb-3">{pending.suggestion.summary}</p>
+        )}
+        {!pending.suggestion.isExplicit && pending.suggestion.startDate && (
+          <p className="text-xs text-amber-600 mb-2">
+            ※ 明示的な日付がなかったため、推定値です。必要に応じて修正してください。
+          </p>
+        )}
+        {!pending.suggestion.startDate && (
+          <p className="text-xs text-amber-600 mb-2">
+            ※ 日付を特定できませんでした。手動で入力してください。
+          </p>
+        )}
+        <form onSubmit={handleConfirm} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">タイトル</label>
+            <input
+              type="text"
+              required
+              value={confirmTitle}
+              onChange={(e) => setConfirmTitle(e.target.value)}
+              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">開始日</label>
+              <input
+                type="date"
+                required
+                value={confirmStart}
+                onChange={(e) => setConfirmStart(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">終了日</label>
+              <input
+                type="date"
+                required
+                value={confirmEnd}
+                onChange={(e) => setConfirmEnd(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={confirming}
+              className="px-4 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {confirming ? "保存中..." : "ガントに追加"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPending(null); setError("") }}
+              className="px-4 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+            >
+              キャンセル
+            </button>
+          </div>
+        </form>
+      </div>
+    )
   }
 
   return (
@@ -55,6 +196,7 @@ export function FileDropzone({ projectId }: { projectId: string }) {
         <input
           ref={inputRef}
           type="file"
+          accept=".txt,.md,.pdf,.csv"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
@@ -62,15 +204,16 @@ export function FileDropzone({ projectId }: { projectId: string }) {
           }}
         />
         {uploading ? (
-          <p className="text-sm text-gray-500">アップロード中...</p>
+          <p className="text-sm text-gray-500">AIが解析中...</p>
         ) : (
           <>
             <p className="text-sm text-gray-500">ここにファイルをドロップ</p>
-            <p className="text-xs text-gray-400 mt-1">またはクリックして選択</p>
+            <p className="text-xs text-gray-400 mt-1">またはクリックして選択（PDF / TXT / MD）</p>
+            <p className="text-xs text-gray-400 mt-0.5">AIが内容から期間を自動抽出します</p>
           </>
         )}
       </div>
-      {message && <p className="text-sm text-gray-600 mt-2">{message}</p>}
+      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
     </div>
   )
 }
