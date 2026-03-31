@@ -20,6 +20,8 @@ export type SelectedFile = {
   name: string
 }
 
+export type SelectedEvent = GanttEvent
+
 const ROW_COLORS: Record<string, string> = {
   仕事: "#6366f1",
   学習: "#10b981",
@@ -53,11 +55,12 @@ function Tooltip({ event, leftPct }: { event: GanttEvent; leftPct: number }) {
 }
 
 // イベントマーカー（円）
-function EventMarker({ event, viewStartMs, totalDays, onFileSelect, selected }: {
+function EventMarker({ event, viewStartMs, totalDays, onFileSelect, onEventSelect, selected }: {
   event: GanttEvent
   viewStartMs: number
   totalDays: number
   onFileSelect?: (file: SelectedFile) => void
+  onEventSelect?: (event: SelectedEvent) => void
   selected?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
@@ -72,6 +75,9 @@ function EventMarker({ event, viewStartMs, totalDays, onFileSelect, selected }: 
   const isActive = selected || hovered
 
   function handleClick() {
+    // イベント選択を通知（常に）
+    onEventSelect?.(event)
+    // ファイルがあればファイルビューアも開く
     if (hasFile && onFileSelect) {
       onFileSelect({ id: event.fileId!, url: event.fileUrl!, name: event.fileName! })
     }
@@ -79,7 +85,7 @@ function EventMarker({ event, viewStartMs, totalDays, onFileSelect, selected }: 
 
   return (
     <div
-      className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 ${hasFile ? "cursor-pointer" : "cursor-default"}`}
+      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer"
       style={{ left: `${leftPct}%` }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -136,10 +142,12 @@ function TodayLine({ viewStartMs, totalDays }: { viewStartMs: number; totalDays:
   )
 }
 
-export function GanttChart({ tasks, onFileSelect, selectedFileId }: {
+export function GanttChart({ tasks, onFileSelect, onEventSelect, selectedFileId, selectedEventId }: {
   tasks: GanttEvent[]
   onFileSelect?: (file: SelectedFile) => void
+  onEventSelect?: (event: SelectedEvent) => void
   selectedFileId?: string | null
+  selectedEventId?: string | null
 }) {
   // 表示範囲をイベントの最小・最大日付から動的に計算
   const { viewStart, totalDays } = useMemo(() => {
@@ -243,7 +251,8 @@ export function GanttChart({ tasks, onFileSelect, selectedFileId }: {
                 viewStartMs={viewStartMs}
                 totalDays={totalDays}
                 onFileSelect={onFileSelect}
-                selected={!!event.fileId && event.fileId === selectedFileId}
+                onEventSelect={onEventSelect}
+                selected={event.id === selectedEventId || (!!event.fileId && event.fileId === selectedFileId)}
               />
             ))}
           </div>

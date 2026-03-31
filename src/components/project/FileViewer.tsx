@@ -8,6 +8,7 @@ import type { SelectedFile } from "@/components/gantt/GanttChart"
 type Props = {
   file: SelectedFile
   onClose: () => void
+  hideCloseButton?: boolean
 }
 
 type FileType = "pdf" | "image" | "markdown" | "text" | "other"
@@ -31,7 +32,7 @@ function toApiUrl(url: string): string {
   return url
 }
 
-export function FileViewer({ file, onClose }: Props) {
+export function FileViewer({ file, onClose, hideCloseButton }: Props) {
   const type = getFileType(file.name)
   const apiUrl = toApiUrl(file.url)
   const [textContent, setTextContent] = useState<string | null>(null)
@@ -83,7 +84,7 @@ export function FileViewer({ file, onClose }: Props) {
           </a>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-lg leading-none ml-2"
+            className={`text-gray-400 hover:text-gray-600 text-lg leading-none ml-2 ${hideCloseButton ? "hidden" : ""}`}
             aria-label="閉じる"
           >
             ✕
