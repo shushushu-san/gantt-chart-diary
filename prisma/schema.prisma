@@ -1,0 +1,140 @@
+// This is your Prisma schema file
+// https://www.prisma.io/docs/concepts/components/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================
+// ユーザー
+// =============================
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  hashedPassword String?
+  image          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  accounts   Account[]
+  sessions   Session[]
+  entries    Entry[]
+  categories Category[]
+  aiConfig   UserAIConfig?
+}
+
+// NextAuth.js 用テーブル
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// =============================
+// ユーザーのAI設定（1対1）
+// =============================
+model UserAIConfig {
+  id       String @id @default(cuid())
+  userId   String @unique
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // "openai" | "ollama"
+  provider String @default("openai")
+
+  // OpenAI設定
+  openaiApiKey String? // ユーザー独自のAPIキー（暗号化推奨）
+  openaiModel  String? @default("gpt-4o")
+
+  // Ollama設定
+  ollamaBaseUrl String? @default("http://localhost:11434")
+  ollamaModel   String? @default("llama3")
+
+  updatedAt DateTime @updatedAt
+}
+
+// =============================
+// カテゴリ（ユーザーがカスタム定義可能）
+// =============================
+model Category {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#6366f1") // ガントバーの色
+  sortOrder Int      @default(0)
+
+  ganttItems GanttItem[]
+
+  @@unique([userId, name])
+}
+
+// =============================
+// 日記エントリ
+// =============================
+model Entry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     String   // テキスト本文
+  sourceUrl   String?  // アップロードファイルのURL
+  sourceType  String?  // "text" | "pdf" | "image" | "docx"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ganttItems GanttItem[]
+}
+
+// =============================
+// ガントチャートのバー
+// =============================
+model GanttItem {
+  id         String   @id @default(cuid())
+  entryId    String
+  entry      Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  title     String
+  summary   String?
+  startDate DateTime
+  endDate   DateTime
+  tags      String[] // PostgreSQLの配列型
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
