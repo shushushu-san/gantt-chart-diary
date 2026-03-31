@@ -27,6 +27,7 @@ model User {
   entries    Entry[]
   categories Category[]
   aiConfig   UserAIConfig?
+  projects   Project[]
 }
 
 // NextAuth.js 用テーブル
@@ -104,12 +105,42 @@ model Category {
 }
 
 // =============================
+// プロジェクト
+// =============================
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries Entry[]
+  files   ProjectFile[]
+}
+
+// プロジェクトにアップロードされたファイル
+model ProjectFile {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  mimeType  String?
+  size      Int?
+  createdAt DateTime @default(now())
+}
+
+// =============================
 // 日記エントリ
 // =============================
 model Entry {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id])
   content     String   // テキスト本文
   sourceUrl   String?  // アップロードファイルのURL
   sourceType  String?  // "text" | "pdf" | "image" | "docx"
@@ -123,17 +154,18 @@ model Entry {
 // ガントチャートのバー
 // =============================
 model GanttItem {
-  id         String   @id @default(cuid())
-  entryId    String
-  entry      Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  categoryId String
-  category   Category @relation(fields: [categoryId], references: [id])
+  id            String    @id @default(cuid())
+  entryId       String
+  entry         Entry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  categoryLabel String?   // カテゴリ名（Category未使用時のフォールバック）
 
   title     String
   summary   String?
   startDate DateTime
   endDate   DateTime
-  tags      String[] // PostgreSQLの配列型
+  tags      String[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

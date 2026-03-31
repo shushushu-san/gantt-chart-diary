@@ -11,6 +11,7 @@ gantt-chart-diary/
 ├── postcss.config.js                   # PostCSS 設定（Tailwind のビルドに必要）
 ├── tsconfig.json                       # TypeScript 設定（@ パスエイリアス定義）
 ├── package.json                        # 依存パッケージ一覧・スクリプト定義
+├── node_modules/                       # ※ gitignore済み。npm install で自動生成される依存パッケージ本体
 │
 ├── prisma/
 │   └── schema.prisma                   # データベーススキーマ定義
@@ -57,6 +58,26 @@ gantt-chart-diary/
 | `tailwind.config.ts` | Tailwind CSS のカスタムテーマ・対象ファイルパスの設定 |
 | `tsconfig.json` | TypeScript の設定。`@/*` → `src/*` のパスエイリアスを定義しており、`import @/lib/...` のような短いパスでインポートできる |
 | `package.json` | 依存パッケージと `npm run dev`, `npm run db:migrate` などのスクリプトを定義 |
+| `node_modules/` | `npm install` 実行時に自動生成される外部パッケージの保存フォルダ。**gitには含めない**（`.gitignore` 済み）。`package.json` さえあれば `npm install` で完全に再現できるため、リポジトリ管理は不要 |
+
+---
+
+### `node_modules/` — 外部パッケージ保存フォルダ
+
+`npm install` を実行すると `package.json` の依存関係を読み込み、自動で生成されるフォルダ。
+
+| 項目 | 内容 |
+| ---- | ---- |
+| **必須性** | アプリの実行には必要。ただし**リポジトリに含める必要はない** |
+| **再生成方法** | `npm install` だけで完全に復元できる |
+| **サイズ** | 数百 MB〜1 GB 以上になることが多い |
+| **git 管理** | `.gitignore` に記載済みのため push されない |
+
+> **リポジトリを clone した後にすること:**
+>
+> ```text
+> npm install   ← これだけで node_modules が復元される
+> ```
 
 ---
 
