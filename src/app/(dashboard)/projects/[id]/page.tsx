@@ -5,6 +5,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { GanttChart } from "@/components/gantt/GanttChart"
 import { FileDropzone } from "@/components/upload/FileDropzone"
+import { FileList } from "@/components/upload/FileList"
 import { NewTaskForm } from "@/components/project/NewTaskForm"
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -58,31 +59,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <section className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-800 mb-4">ファイル</h2>
         <FileDropzone projectId={project.id} />
-
-        {project.files.length > 0 && (
-          <ul className="mt-4 space-y-2">
-            {project.files.map((f) => (
-              <li
-                key={f.id}
-                className="flex items-center justify-between py-2 px-3 rounded-md bg-gray-50 border border-gray-100"
-              >
-                <a
-                  href={f.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-indigo-600 hover:underline truncate max-w-xs"
-                >
-                  {f.name}
-                </a>
-                <span className="text-xs text-gray-400 ml-4 shrink-0">
-                  {f.size ? `${Math.round(f.size / 1024)} KB` : ""}
-                  {" · "}
-                  {new Date(f.createdAt).toLocaleDateString("ja-JP")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <FileList
+          projectId={project.id}
+          files={project.files.map((f) => ({
+            id: f.id,
+            name: f.name,
+            url: f.url,
+            size: f.size,
+            subfolder: f.subfolder,
+            createdAt: f.createdAt.toISOString(),
+          }))}
+        />
       </section>
     </div>
   )

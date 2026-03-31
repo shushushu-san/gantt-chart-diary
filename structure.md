@@ -41,6 +41,7 @@ gantt-chart-diary/
     │       │   └── [id]/
     │       │       ├── route.ts            # プロジェクト取得・更新・削除 API
     │       │       ├── files/route.ts      # ファイルアップロード・AI解析 API
+    │       │       ├── files/[fileId]/route.ts  # ファイル個別削除 API
     │       │       └── tasks/route.ts      # ガントアイテム（タスク）作成 API
     │       └── settings/
     │           └── ai/route.ts             # AI設定 API（GET / PUT）
@@ -124,9 +125,9 @@ gantt-chart-diary/
 | `UserAIConfig` | ユーザーごとのAI設定（プロバイダー種別・APIキー・モデル名）。`User` と 1対1 |
 | `Category` | ガントチャートのレーン（カテゴリ）。ユーザーがカスタム定義できる |
 | `Project` | プロジェクト。複数の `Entry` と `ProjectFile` を持つ |
-| `ProjectFile` | プロジェクトにアップロードされたファイル情報。`Entry` と1対多で紐づく |
+| `ProjectFile` | プロジェクトにアップロードされたファイル情報。`subfolder`（AI提案・ユーザー確認済みのフォルダ名）を持ち、`Entry` と1対多で紐づく |
 | `Entry` | 日記エントリ本体。テキスト本文・ファイルURL・`Project`・`ProjectFile` と紐づく |
-| `GanttItem` | ガントチャートのバー1本分。`Entry` に紐づき、開始日・終了日・タグを持つ |
+| `GanttItem` | ガントチャートのイベントマーカー1件分。`Entry` に紐づき、開始日・終了日・タイトル・summary・タグを持つ。水平線上の円マーカーとして表示され、ホバーでツールチップが出る |
 
 ---
 
@@ -165,6 +166,7 @@ gantt-chart-diary/
 | `api/projects/route.ts` | GET / POST | プロジェクト一覧取得・新規作成 |
 | `api/projects/[id]/route.ts` | GET / PUT / DELETE | プロジェクト取得・更新・削除 |
 | `api/projects/[id]/files/route.ts` | POST | ファイルアップロード・テキスト抽出・AI期間解析 |
+| `api/projects/[id]/files/[fileId]/route.ts` | DELETE | ファイル個別削除（DB + 実ファイル） |
 | `api/projects/[id]/tasks/route.ts` | POST | ガントアイテム（タスク）手動作成 |
 | `api/settings/ai/route.ts` | GET / PUT | ユーザーのAI設定取得・更新 |
 
@@ -180,6 +182,7 @@ gantt-chart-diary/
 | `project/NewTaskForm.tsx` | タスクを手動登録するフォーム（タイトル・開始日・終了日） |
 | `providers/SessionProvider.tsx` | NextAuth の SessionProvider をラップしてアプリ全体に提供 |
 | `upload/FileDropzone.tsx` | ファイルドロップUI。アップロード後にAI解析結果を確認・修正できるフォームを表示 |
+| `upload/FileList.tsx` | アップロード済みファイル一覧。サブフォルダ表示・削除ボタン付き（削除確認ダイアログあり） |
 
 ---
 
@@ -191,15 +194,16 @@ AIプロバイダーを差し替え可能にするための抽象化レイヤー
 
 ```text
 AIProvider（インターフェース）
-├── extractPeriod()  テキストから開始・終了日を抽出
-└── summarize()      タイトルと要約を生成
+├── extractPeriod()   テキストから開始・終了日を抽出
+├── summarize()       タイトルと要約を生成
+└── suggestFolder()   ファイル内容から保存先サブフォルダ名を提案
 ```
 
 分類（classify）機能は持たない。全プロバイダーがこのインターフェースを実装するため、呼び出し側はプロバイダーの種類を意識しなくてよい。
 
 #### `prompts.ts` — プロンプトテンプレート
 
-LLMに渡すプロンプト文字列を生成する関数。OpenAI でも Ollama でも同じプロンプトを使う。LLMが JSON 以外の余計なテキストを返した場合にも対応できる `parseJSONResponse()` も含む。
+LLMに渡すプロンプト文字列を生成する関数。OpenAI でも Ollama でも同じプロンプトを使う。`buildExtractPeriodPrompt()`・`buildSummarizePrompt()`・`buildSuggestFolderPrompt()` の3種を提供。LLMが JSON 以外の余計なテキストを返した場合にも対応できる `parseJSONResponse()` も含む。
 
 #### `factory.ts` — プロバイダーファクトリー
 
@@ -264,13 +268,17 @@ POST /api/projects/[id]/files
   ├─ getAIProviderForUser(userId)  ← lib/ai/server.ts
   │     └─ ユーザーのDB設定 or 環境変数のデフォルト
   ├─ ai.extractPeriod(text, today) → 開始・終了日
-  └─ ai.summarize(text)            → タイトル・要約
+  ├─ ai.summarize(text)            → タイトル・要約
+  └─ ai.suggestFolder(text)        → 保存先サブフォルダ提案  ★
         │
         ▼
   AI解析結果をフロントに返却（aiSuggestion）
         │
         ▼
   ユーザーが確認・修正（FileDropzone 内フォーム）
+  ├─ フォルダ名（AI提案・理由表示・編集可）  ★
+  ├─ タイトル（編集可）
+  └─ 開始日 / 終了日（編集可）
         │
         ▼
   POST /api/projects/[id]/tasks
@@ -278,7 +286,22 @@ POST /api/projects/[id]/files
         │
         ▼
   GanttChart コンポーネントで表示
-  バーをクリック → Entry の元ファイル・テキストを参照
+  水平線 + 円マーカー形式。マーカーホバーでツールチップ表示  ★
+  マーカークリック → Entry の元ファイル・テキストを参照
+
+### ファイル削除の場合
+
+```text
+FileList の「削除」ボタン → 確認ダイアログ
+  │
+  ▼
+DELETE /api/projects/[id]/files/[fileId]
+  ├─ Entry.projectFileId を null に更新
+  ├─ ProjectFile を DB から削除
+  └─ uploads/ 以下の実ファイルを削除
+  │
+  ▼
+画面を自動更新
 ```
 
 ### 手動タスク作成の場合
