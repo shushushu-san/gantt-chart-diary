@@ -9,6 +9,15 @@ export type GanttEvent = {
   startDate: string
   endDate: string
   categoryLabel: string | null
+  fileId: string | null
+  fileUrl: string | null
+  fileName: string | null
+}
+
+export type SelectedFile = {
+  id: string
+  url: string
+  name: string
 }
 
 const ROW_COLORS: Record<string, string> = {
@@ -44,10 +53,12 @@ function Tooltip({ event, leftPct }: { event: GanttEvent; leftPct: number }) {
 }
 
 // イベントマーカー（円）
-function EventMarker({ event, viewStartMs, totalDays }: {
+function EventMarker({ event, viewStartMs, totalDays, onFileSelect, selected }: {
   event: GanttEvent
   viewStartMs: number
   totalDays: number
+  onFileSelect?: (file: SelectedFile) => void
+  selected?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const rangeMs = totalDays * 86400000
@@ -57,24 +68,34 @@ function EventMarker({ event, viewStartMs, totalDays }: {
   if (leftPct < -2 || leftPct > 102) return null
 
   const color = getColor(event.categoryLabel)
+  const hasFile = !!event.fileUrl
+  const isActive = selected || hovered
+
+  function handleClick() {
+    if (hasFile && onFileSelect) {
+      onFileSelect({ id: event.fileId!, url: event.fileUrl!, name: event.fileName! })
+    }
+  }
 
   return (
     <div
-      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer"
+      className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 ${hasFile ? "cursor-pointer" : "cursor-default"}`}
       style={{ left: `${leftPct}%` }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={handleClick}
     >
-      {/* 外側のリング（ホバー時に拡大） */}
+      {/* 外側のリング */}
       <div
         className={`rounded-full border-2 flex items-center justify-center transition-transform duration-150 ${
-          hovered ? "scale-150" : "scale-100"
+          isActive ? "scale-150" : "scale-100"
         }`}
         style={{
           width: 16,
           height: 16,
           borderColor: color,
-          backgroundColor: hovered ? color : "white",
+          backgroundColor: isActive ? color : "white",
+          boxShadow: selected ? `0 0 0 3px ${color}44` : undefined,
         }}
       >
         <div
@@ -83,10 +104,18 @@ function EventMarker({ event, viewStartMs, totalDays }: {
             width: 6,
             height: 6,
             backgroundColor: color,
-            opacity: hovered ? 0 : 1,
+            opacity: isActive ? 0 : 1,
           }}
         />
       </div>
+      {/* ファイルあり：小さなクリップアイコン */}
+      {hasFile && !isActive && (
+        <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full flex items-center justify-center">
+          <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
+          </svg>
+        </div>
+      )}
       {/* ツールチップ */}
       {hovered && <Tooltip event={event} leftPct={leftPct} />}
     </div>
@@ -107,15 +136,39 @@ function TodayLine({ viewStartMs, totalDays }: { viewStartMs: number; totalDays:
   )
 }
 
-export function GanttChart({ tasks }: { tasks: GanttEvent[] }) {
-  const totalDays = 60
+export function GanttChart({ tasks, onFileSelect, selectedFileId }: {
+  tasks: GanttEvent[]
+  onFileSelect?: (file: SelectedFile) => void
+  selectedFileId?: string | null
+}) {
+  // 表示範囲をイベントの最小・最大日付から動的に計算
+  const { viewStart, totalDays } = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
-  const viewStart = useMemo(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 15)
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [])
+    if (tasks.length === 0) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - 15)
+      return { viewStart: d, totalDays: 60 }
+    }
+
+    const dates = tasks.flatMap((t) => [
+      new Date(t.startDate).getTime(),
+      new Date(t.endDate).getTime(),
+    ])
+    const minMs = Math.min(...dates)
+    const maxMs = Math.max(...dates, today.getTime())
+
+    // 前後に余白（14日）を追加
+    const pad = 14 * 86400000
+    const start = new Date(minMs - pad)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(maxMs + pad)
+    end.setHours(0, 0, 0, 0)
+
+    const totalDays = Math.max(60, Math.ceil((end.getTime() - start.getTime()) / 86400000))
+    return { viewStart: start, totalDays }
+  }, [tasks])
 
   const viewStartMs = viewStart.getTime()
   const viewEndMs = viewStartMs + totalDays * 86400000
@@ -189,6 +242,8 @@ export function GanttChart({ tasks }: { tasks: GanttEvent[] }) {
                 event={event}
                 viewStartMs={viewStartMs}
                 totalDays={totalDays}
+                onFileSelect={onFileSelect}
+                selected={!!event.fileId && event.fileId === selectedFileId}
               />
             ))}
           </div>

@@ -6,6 +6,7 @@ import { FileList } from "@/components/upload/FileList"
 import { NewTaskForm } from "@/components/project/NewTaskForm"
 import { ProjectDeleteButton } from "@/components/project/ProjectDeleteButton"
 import { AISettingsModal } from "@/components/settings/AISettingsModal"
+import type { SelectedFile } from "@/components/gantt/GanttChart"
 
 type ProjectFile = {
   id: string
@@ -20,6 +21,8 @@ type Props = {
   projectId: string
   projectName: string
   files: ProjectFile[]
+  onFileSelect?: (file: SelectedFile) => void
+  selectedFileId?: string | null
 }
 
 // ファイルをサブフォルダごとにグループ化
@@ -33,7 +36,13 @@ function groupByFolder(files: ProjectFile[]): Record<string, ProjectFile[]> {
   return groups
 }
 
-function FolderNode({ name, files, projectId }: { name: string; files: ProjectFile[]; projectId: string }) {
+function FolderNode({ name, files, projectId, onFileSelect, selectedFileId }: {
+  name: string
+  files: ProjectFile[]
+  projectId: string
+  onFileSelect?: (file: SelectedFile) => void
+  selectedFileId?: string | null
+}) {
   const [open, setOpen] = useState(true)
   const isRoot = name === "ルート"
 
@@ -54,19 +63,23 @@ function FolderNode({ name, files, projectId }: { name: string; files: ProjectFi
       {(open || isRoot) && (
         <div className={isRoot ? "" : "pl-4 border-l border-gray-200 ml-3"}>
           {files.map((f) => (
-            <a
+            <button
               key={f.id}
-              href={f.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-100 rounded text-xs text-gray-600 hover:text-indigo-600 group"
+              onClick={() => onFileSelect?.({ id: f.id, url: f.url, name: f.name })}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs text-left w-full group transition-colors ${
+                selectedFileId === f.id
+                  ? "bg-indigo-50 text-indigo-700"
+                  : "hover:bg-gray-100 text-gray-600 hover:text-indigo-600"
+              }`}
               title={f.name}
             >
-              <svg className="w-3.5 h-3.5 text-gray-400 shrink-0 group-hover:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3.5 h-3.5 shrink-0 ${
+                selectedFileId === f.id ? "text-indigo-400" : "text-gray-400 group-hover:text-indigo-400"
+              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span className="truncate">{f.name}</span>
-            </a>
+            </button>
           ))}
         </div>
       )}
@@ -76,7 +89,7 @@ function FolderNode({ name, files, projectId }: { name: string; files: ProjectFi
 
 type ModalType = "upload" | "event" | "settings" | null
 
-export function ProjectSidebar({ projectId, projectName, files }: Props) {
+export function ProjectSidebar({ projectId, projectName, files, onFileSelect, selectedFileId }: Props) {
   const [activeModal, setActiveModal] = useState<ModalType>(null)
 
   const groups = groupByFolder(files)
@@ -111,6 +124,8 @@ export function ProjectSidebar({ projectId, projectName, files }: Props) {
                 name={folder}
                 files={groups[folder]}
                 projectId={projectId}
+                onFileSelect={onFileSelect}
+                selectedFileId={selectedFileId}
               />
             ))
           )}

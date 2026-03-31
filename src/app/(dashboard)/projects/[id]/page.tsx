@@ -3,8 +3,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/db/prisma"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { GanttChart } from "@/components/gantt/GanttChart"
-import { ProjectSidebar } from "@/components/project/ProjectSidebar"
+import { ProjectLayout } from "@/components/project/ProjectLayout"
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
@@ -14,7 +13,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     where: { id, userId: session!.user.id },
     include: {
       files: { orderBy: { createdAt: "desc" } },
-      entries: { include: { ganttItems: true } },
+      entries: {
+        include: {
+          ganttItems: true,
+          projectFile: true,
+        },
+      },
     },
   })
   if (!project) notFound()
@@ -27,6 +31,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       startDate: g.startDate.toISOString(),
       endDate: g.endDate.toISOString(),
       categoryLabel: g.categoryLabel,
+      fileId: e.projectFile?.id ?? null,
+      fileUrl: e.projectFile?.url ?? null,
+      fileName: e.projectFile?.name ?? null,
     }))
   )
 
@@ -48,20 +55,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <span className="text-gray-900 font-medium">{project.name}</span>
       </div>
 
-      {/* メインエリア: サイドバー + ガントチャート */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左サイドバー */}
-        <ProjectSidebar
-          projectId={project.id}
-          projectName={project.name}
-          files={files}
-        />
-
-        {/* ガントチャートエリア */}
-        <main className="flex-1 overflow-auto p-6 bg-white">
-          <GanttChart tasks={tasks} />
-        </main>
-      </div>
+      {/* メインエリア: サイドバー + ガントチャート + ファイルビューア */}
+      <ProjectLayout
+        projectId={project.id}
+        projectName={project.name}
+        files={files}
+        tasks={tasks}
+      />
     </div>
   )
 }
