@@ -18,7 +18,7 @@ type PendingConfirm = {
   suggestedFolder: { folder: string; reason: string } | null
 }
 
-export function FileDropzone({ projectId }: { projectId: string }) {
+export function FileDropzone({ projectId, onClose }: { projectId: string; onClose?: () => void }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -99,6 +99,7 @@ export function FileDropzone({ projectId }: { projectId: string }) {
     }
     setPending(null)
     router.refresh()
+    onClose?.()
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -192,7 +193,7 @@ export function FileDropzone({ projectId }: { projectId: string }) {
             </button>
             <button
               type="button"
-              onClick={() => { setPending(null); setError("") }}
+              onClick={() => { setPending(null); setError(""); onClose?.() }}
               className="px-4 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
             >
               キャンセル

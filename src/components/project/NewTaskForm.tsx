@@ -3,14 +3,29 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 
-export function NewTaskForm({ projectId }: { projectId: string }) {
+type Props = {
+  projectId: string
+  /** 提供された場合はモーダル埋め込みモード（常にフォーム表示・Cancel で呼び出し） */
+  onClose?: () => void
+}
+
+export function NewTaskForm({ projectId, onClose }: Props) {
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!!onClose)
   const [title, setTitle] = useState("")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  function handleCancel() {
+    setOpen(false)
+    setTitle("")
+    setStartDate("")
+    setEndDate("")
+    setError("")
+    onClose?.()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,6 +51,7 @@ export function NewTaskForm({ projectId }: { projectId: string }) {
     setEndDate("")
     setOpen(false)
     router.refresh()
+    onClose?.()
   }
 
   if (!open) {
@@ -50,60 +66,57 @@ export function NewTaskForm({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">タスクを手動追加</h3>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">タスク名</label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="例: 論文執筆"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">開始日</label>
-            <input
-              type="date"
-              required
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">終了日</label>
-            <input
-              type="date"
-              required
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 mb-1">タスク名</label>
+          <input
+            type="text"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="例: 論文執筆"
+          />
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "追加中..." : "追加"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="px-3 py-1.5 bg-white text-gray-600 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 transition-colors"
-          >
-            キャンセル
-          </button>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">開始日</label>
+          <input
+            type="date"
+            required
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
         </div>
-      </form>
-    </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">終了日</label>
+          <input
+            type="date"
+            required
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-3 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+        >
+          {loading ? "追加中..." : "追加"}
+        </button>
+        <button
+          type="button"
+          onClick={handleCancel}
+          className="px-3 py-1.5 bg-white text-gray-600 text-sm font-medium rounded border border-gray-300 hover:bg-gray-50 transition-colors"
+        >
+          キャンセル
+        </button>
+      </div>
+    </form>
   )
 }

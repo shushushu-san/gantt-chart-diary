@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/db/prisma"
-import Link from "next/link"
 import { NewProjectForm } from "@/components/project/NewProjectForm"
+import { ProjectCard } from "@/components/project/ProjectCard"
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   })
 
   return (
-    <div>
+    <div className="max-w-6xl mx-auto px-4 py-8 overflow-y-auto h-full">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">プロジェクト</h1>
         <NewProjectForm />
@@ -27,25 +27,15 @@ export default async function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((p) => (
-            <Link
+            <ProjectCard
               key={p.id}
-              href={`/projects/${p.id}`}
-              className="bg-white p-5 rounded-lg border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all group"
-            >
-              <h2 className="font-semibold text-gray-900 group-hover:text-indigo-600 mb-1 truncate">
-                {p.name}
-              </h2>
-              {p.description && (
-                <p className="text-sm text-gray-500 mb-3 line-clamp-2">{p.description}</p>
-              )}
-              <div className="flex gap-3 text-xs text-gray-400">
-                <span>タスク {p._count.entries}件</span>
-                <span>ファイル {p._count.files}件</span>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {new Date(p.createdAt).toLocaleDateString("ja-JP")}
-              </p>
-            </Link>
+              id={p.id}
+              name={p.name}
+              description={p.description}
+              entriesCount={p._count.entries}
+              filesCount={p._count.files}
+              createdAt={p.createdAt.toISOString()}
+            />
           ))}
         </div>
       )}

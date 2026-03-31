@@ -1,0 +1,183 @@
+"use client"
+
+import { useState } from "react"
+import { FileDropzone } from "@/components/upload/FileDropzone"
+import { FileList } from "@/components/upload/FileList"
+import { NewTaskForm } from "@/components/project/NewTaskForm"
+import { ProjectDeleteButton } from "@/components/project/ProjectDeleteButton"
+
+type ProjectFile = {
+  id: string
+  name: string
+  url: string
+  size: number | null
+  subfolder: string | null
+  createdAt: string
+}
+
+type Props = {
+  projectId: string
+  projectName: string
+  files: ProjectFile[]
+}
+
+// ファイルをサブフォルダごとにグループ化
+function groupByFolder(files: ProjectFile[]): Record<string, ProjectFile[]> {
+  const groups: Record<string, ProjectFile[]> = {}
+  for (const f of files) {
+    const key = f.subfolder ?? "ルート"
+    if (!groups[key]) groups[key] = []
+    groups[key].push(f)
+  }
+  return groups
+}
+
+function FolderNode({ name, files, projectId }: { name: string; files: ProjectFile[]; projectId: string }) {
+  const [open, setOpen] = useState(true)
+  const isRoot = name === "ルート"
+
+  return (
+    <div className="mb-0.5">
+      {!isRoot && (
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1 w-full text-left px-2 py-1 hover:bg-gray-100 rounded text-xs text-gray-700 font-semibold"
+        >
+          <span className="text-gray-400 text-[10px]">{open ? "▾" : "▸"}</span>
+          <svg className="w-3.5 h-3.5 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+          </svg>
+          <span className="truncate">{name}</span>
+        </button>
+      )}
+      {(open || isRoot) && (
+        <div className={isRoot ? "" : "pl-4 border-l border-gray-200 ml-3"}>
+          {files.map((f) => (
+            <a
+              key={f.id}
+              href={f.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-2 py-1 hover:bg-gray-100 rounded text-xs text-gray-600 hover:text-indigo-600 group"
+              title={f.name}
+            >
+              <svg className="w-3.5 h-3.5 text-gray-400 shrink-0 group-hover:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="truncate">{f.name}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+type ModalType = "upload" | "event" | null
+
+export function ProjectSidebar({ projectId, projectName, files }: Props) {
+  const [activeModal, setActiveModal] = useState<ModalType>(null)
+
+  const groups = groupByFolder(files)
+  const folders = Object.keys(groups).sort((a, b) => {
+    if (a === "ルート") return -1
+    if (b === "ルート") return 1
+    return a.localeCompare(b)
+  })
+
+  return (
+    <>
+      {/* サイドバー本体 */}
+      <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 w-60 shrink-0">
+        {/* ヘッダー */}
+        <div className="px-3 py-3 border-b border-gray-200 bg-white">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-gray-800 truncate" title={projectName}>
+              {projectName}
+            </h2>
+            <ProjectDeleteButton projectId={projectId} projectName={projectName} />
+          </div>
+        </div>
+
+        {/* ファイルツリー */}
+        <div className="flex-1 overflow-y-auto py-2 px-1">
+          {folders.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-8">ファイルなし</p>
+          ) : (
+            folders.map((folder) => (
+              <FolderNode
+                key={folder}
+                name={folder}
+                files={groups[folder]}
+                projectId={projectId}
+              />
+            ))
+          )}
+        </div>
+
+        {/* 下部ボタン */}
+        <div className="p-3 border-t border-gray-200 space-y-2 bg-white">
+          <button
+            onClick={() => setActiveModal("event")}
+            className="w-full px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 transition-colors"
+          >
+            イベントを追加
+          </button>
+          <button
+            onClick={() => setActiveModal("upload")}
+            className="w-full px-3 py-2 bg-white text-gray-700 text-sm font-medium rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
+          >
+            ファイルを追加
+          </button>
+        </div>
+      </div>
+
+      {/* モーダルオーバーレイ */}
+      {activeModal && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveModal(null)
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* モーダルヘッダー */}
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="text-base font-semibold text-gray-900">
+                {activeModal === "event" ? "イベントを追加" : "ファイルを追加"}
+              </h3>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                aria-label="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* モーダルコンテンツ */}
+            <div className="p-5">
+              {activeModal === "event" ? (
+                <NewTaskForm
+                  projectId={projectId}
+                  onClose={() => setActiveModal(null)}
+                />
+              ) : (
+                <>
+                  <FileDropzone
+                    projectId={projectId}
+                    onClose={() => setActiveModal(null)}
+                  />
+                  <FileList
+                    projectId={projectId}
+                    files={files}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
