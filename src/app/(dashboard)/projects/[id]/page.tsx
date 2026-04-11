@@ -30,6 +30,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       summary: g.summary,
       startDate: g.startDate.toISOString(),
       endDate: g.endDate.toISOString(),
+      subfolder: e.projectFile?.subfolder ?? null,
       categoryLabel: g.categoryLabel,
       fileId: e.projectFile?.id ?? null,
       fileUrl: e.projectFile?.url ?? null,

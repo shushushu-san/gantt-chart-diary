@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/db/prisma"
 import { getAIProviderForUser } from "@/lib/ai/server"
-import { writeFile, mkdir } from "node:fs/promises"
+import { writeFile, mkdir, unlink } from "node:fs/promises"
 import path from "node:path"
 
 // ファイルからテキストを抽出する
@@ -43,12 +43,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const formData = await req.formData()
   const file = formData.get("file") as File | null
   if (!file) return NextResponse.json({ error: "ファイルが見つかりません" }, { status: 400 })
+  const useAI = formData.get("useAI") !== "false"
 
   const bytes = await file.arrayBuffer()
   const buffer = Buffer.from(bytes)
 
   // テキスト抽出 → AI解析（ファイル保存前にフォルダ名を決める）
-  const extractedText = await extractText(buffer, file.type)
+  const extractedText = useAI ? await extractText(buffer, file.type) : ""
 
   let suggestedFolder: { folder: string; reason: string } | null = null
   let aiSuggestion: {
@@ -111,4 +112,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   })
 
   return NextResponse.json({ file: projectFile, aiSuggestion, suggestedFolder, aiError }, { status: 201 })
+}
+
+// PATCH /api/projects/[id]/files  → フォルダ名を一括変更
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id } = await params
+  const project = await prisma.project.findFirst({ where: { id, userId: session.user.id } })
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const { subfolder, newSubfolder } = await req.json()
+  if (typeof subfolder !== "string" || typeof newSubfolder !== "string" || !newSubfolder.trim()) {
+    return NextResponse.json({ error: "subfolder と newSubfolder は必須です" }, { status: 400 })
+  }
+
+  const safeNew = newSubfolder.trim().replace(/[\x00-\x1f\\<>:"|?*]/g, "-").replace(/\/+/g, "/").replace(/^\/|\/$/g, "")
+
+  await prisma.projectFile.updateMany({
+    where: { projectId: id, subfolder },
+    data: { subfolder: safeNew },
+  })
+
+  return NextResponse.json({ success: true, newSubfolder: safeNew })
+}
+
+// DELETE /api/projects/[id]/files?subfolder=xxx  → フォルダ内全ファイルを削除
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id } = await params
+  const project = await prisma.project.findFirst({ where: { id, userId: session.user.id } })
+  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const subfolder = req.nextUrl.searchParams.get("subfolder")
+  if (!subfolder) return NextResponse.json({ error: "subfolder パラメータが必要です" }, { status: 400 })
+
+  const files = await prisma.projectFile.findMany({ where: { projectId: id, subfolder } })
+
+  for (const file of files) {
+    // Entry の外部キーを null に
+    await prisma.entry.updateMany({ where: { projectFileId: file.id }, data: { projectFileId: null } })
+    await prisma.projectFile.delete({ where: { id: file.id } })
+    if (file.url) {
+      try { await unlink(path.join(process.cwd(), file.url)) } catch { /* ignore */ }
+    }
+  }
+
+  return NextResponse.json({ success: true, deleted: files.length })
 }

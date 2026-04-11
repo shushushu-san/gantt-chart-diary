@@ -18,7 +18,11 @@ type PendingConfirm = {
   suggestedFolder: { folder: string; reason: string } | null
 }
 
-export function FileDropzone({ projectId, onClose }: { projectId: string; onClose?: () => void }) {
+export function FileDropzone({ projectId, onClose, existingFolders = [] }: {
+  projectId: string
+  onClose?: () => void
+  existingFolders?: string[]
+}) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -30,7 +34,11 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
   const [confirmStart, setConfirmStart] = useState("")
   const [confirmEnd, setConfirmEnd] = useState("")
   const [confirmFolder, setConfirmFolder] = useState("")
+  const [confirmFileName, setConfirmFileName] = useState("")
   const [confirming, setConfirming] = useState(false)
+  const [folderMode, setFolderMode] = useState<"select" | "new">("select")
+  const [useAI, setUseAI] = useState(false)
+  const [dateMode, setDateMode] = useState<"single" | "range">("range")
 
   async function uploadFile(file: File) {
     setUploading(true)
@@ -38,6 +46,7 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
     setPending(null)
     const form = new FormData()
     form.append("file", file)
+    form.append("useAI", useAI ? "true" : "false")
     const res = await fetch(`/api/projects/${projectId}/files`, {
       method: "POST",
       body: form,
@@ -61,13 +70,20 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
       setConfirmTitle(aiSuggestion.title)
       setConfirmStart(aiSuggestion.startDate ?? "")
       setConfirmEnd(aiSuggestion.endDate ?? "")
-      setConfirmFolder(suggestedFolder?.folder ?? "general")
+      const aiFolder = suggestedFolder?.folder ?? "general"
+      setConfirmFolder(aiFolder)
+      setFolderMode(existingFolders.includes(aiFolder) ? "select" : "new")
+      setConfirmFileName(file.name)
+      setDateMode(aiSuggestion.startDate && aiSuggestion.endDate && aiSuggestion.startDate !== aiSuggestion.endDate ? "range" : "single")
       setPending({ fileId: projectFile.id, fileName: file.name, suggestion: aiSuggestion, suggestedFolder })
     } else {
       setConfirmTitle(file.name.replace(/\.[^.]+$/, ""))
       setConfirmStart("")
       setConfirmEnd("")
-      setConfirmFolder("general")
+      setConfirmFolder(existingFolders[0] ?? "general")
+      setFolderMode(existingFolders.length > 0 ? "select" : "new")
+      setConfirmFileName(file.name)
+      setDateMode("range")
       setPending({ fileId: projectFile.id, fileName: file.name, suggestion: { title: "", summary: "", startDate: null, endDate: null, isExplicit: false }, suggestedFolder: null })
     }
 
@@ -77,12 +93,21 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
   async function handleConfirm(e: React.FormEvent) {
     e.preventDefault()
     if (!pending) return
-    if (confirmEnd < confirmStart) {
+    const effectiveEnd = dateMode === "single" ? confirmStart : confirmEnd
+    if (dateMode === "range" && effectiveEnd < confirmStart) {
       setError("終了日は開始日以降にしてください")
       return
     }
     setConfirming(true)
     setError("")
+    // ファイル名が変更された場合はPATCH
+    if (confirmFileName.trim() && confirmFileName !== pending.fileName) {
+      await fetch(`/api/projects/${projectId}/files/${pending.fileId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: confirmFileName.trim() }),
+      })
+    }
     const res = await fetch(`/api/projects/${projectId}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -90,7 +115,7 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
         title: confirmTitle,
         summary: pending.suggestion.summary || null,
         startDate: confirmStart,
-        endDate: confirmEnd,
+        endDate: effectiveEnd,
         fileId: pending.fileId,
         subfolder: confirmFolder || "general",
       }),
@@ -137,6 +162,16 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
         )}
         <form onSubmit={handleConfirm} className="space-y-3">
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ファイル名</label>
+            <input
+              type="text"
+              required
+              value={confirmFileName}
+              onChange={(e) => setConfirmFileName(e.target.value)}
+              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">タイトル</label>
             <input
               type="text"
@@ -146,27 +181,97 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
               className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-          {/* フォルダ確認（AI提案・ユーザーが自由に変更可能） */}
+          {/* フォルダパス（既存選択 or 新規入力） */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
-              保存フォルダ名
+              保存フォルダパス
               {pending.suggestedFolder && (
                 <span className="ml-2 text-indigo-500">AI提案: {pending.suggestedFolder.reason}</span>
               )}
             </label>
-            <input
-              type="text"
-              required
-              value={confirmFolder}
-              onChange={(e) => setConfirmFolder(e.target.value.replace(/[^a-zA-Z0-9_-]/g, "-"))}
-              placeholder="例: meeting-notes"
-              className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <p className="text-xs text-gray-400 mt-0.5">英数字・ハイフン・アンダーバーのみ。自由に変更できます。</p>
+            {existingFolders.length > 0 && (
+              <div className="flex gap-2 mb-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFolderMode("select")}
+                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                    folderMode === "select"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  既存から選択
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFolderMode("new"); setConfirmFolder("") }}
+                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                    folderMode === "new"
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  新規フォルダ
+                </button>
+              </div>
+            )}
+            {folderMode === "select" && existingFolders.length > 0 ? (
+              <select
+                required
+                value={confirmFolder}
+                onChange={(e) => setConfirmFolder(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="">-- 選択してください --</option>
+                {existingFolders.map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  required
+                  value={confirmFolder}
+                  onChange={(e) => setConfirmFolder(e.target.value.replace(/[\x00-\x1f\\<>:"|?*]/g, "-").replace(/\/+/g, "/").replace(/^\//, ""))}
+                  placeholder="例: reports/2026"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">スラッシュ（/）でパスを指定できます。</p>
+              </>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* 単日 / 期間 切り替え */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">日付タイプ</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                <input
+                  type="radio"
+                  name="dateMode"
+                  value="single"
+                  checked={dateMode === "single"}
+                  onChange={() => setDateMode("single")}
+                  className="accent-indigo-600"
+                />
+                単日イベント
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                <input
+                  type="radio"
+                  name="dateMode"
+                  value="range"
+                  checked={dateMode === "range"}
+                  onChange={() => setDateMode("range")}
+                  className="accent-indigo-600"
+                />
+                期間
+              </label>
+            </div>
+          </div>
+          {dateMode === "single" ? (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">開始日</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">日付</label>
               <input
                 type="date"
                 required
@@ -175,17 +280,30 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
                 className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">終了日</label>
-              <input
-                type="date"
-                required
-                value={confirmEnd}
-                onChange={(e) => setConfirmEnd(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">開始日</label>
+                <input
+                  type="date"
+                  required
+                  value={confirmStart}
+                  onChange={(e) => setConfirmStart(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">終了日</label>
+                <input
+                  type="date"
+                  required
+                  value={confirmEnd}
+                  onChange={(e) => setConfirmEnd(e.target.value)}
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
             </div>
-          </div>
+          )}
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button
@@ -230,15 +348,25 @@ export function FileDropzone({ projectId, onClose }: { projectId: string; onClos
           }}
         />
         {uploading ? (
-          <p className="text-sm text-gray-500">AIが解析中...</p>
+          <p className="text-sm text-gray-500">{useAI ? "AIが解析中..." : "アップロード中..."}</p>
         ) : (
           <>
             <p className="text-sm text-gray-500">ここにファイルをドロップ</p>
             <p className="text-xs text-gray-400 mt-1">またはクリックして選択（PDF / TXT / MD）</p>
-            <p className="text-xs text-gray-400 mt-0.5">AIが内容から期間を自動抽出します</p>
+            {useAI && <p className="text-xs text-gray-400 mt-0.5">AIが内容から期間を自動抽出します</p>}
           </>
         )}
       </div>
+      {/* AI解析トグル */}
+      <label className="flex items-center gap-2 mt-3 cursor-pointer select-none w-fit">
+        <input
+          type="checkbox"
+          checked={useAI}
+          onChange={(e) => setUseAI(e.target.checked)}
+          className="w-4 h-4 rounded accent-indigo-600"
+        />
+        <span className="text-xs text-gray-600">AI解析を使用する</span>
+      </label>
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
     </div>
   )
